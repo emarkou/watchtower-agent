@@ -19,7 +19,7 @@ def run_feature_drift(X_ref: pd.DataFrame, X_cur: pd.DataFrame) -> EvidentlyFeat
         share_of_drifted = float(result["share_of_drifted_columns"])
 
         # Per-column detail not available at this level; use n_drifted to populate flags
-        n_drifted = int(result.get("number_of_drifted_columns", 0))
+        int(result.get("number_of_drifted_columns", 0))
         columns = list(X_ref.columns)
         per_feature_scores: dict[str, float] = {c: 0.0 for c in columns}
         per_feature_drift: dict[str, bool] = {c: False for c in columns}

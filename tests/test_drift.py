@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import pytest
 from drift.statistical import run_statistical_drift
 from drift.feature_drift import run_feature_drift
 from drift.target_drift import run_target_drift
 from drift.report import DriftReport
-from data.synthetic import SyntheticDataLoader, SyntheticDataLoaderNoDrift
 
 
 def test_statistical_drift_detected(loader, ref_data, cur_data):

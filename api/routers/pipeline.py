@@ -4,10 +4,9 @@ import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
 from agent.run_store import RunStore
