@@ -1,0 +1,59 @@
+name: Scheduled Drift Check
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"  # Monday 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -e "."
+
+      - name: Run drift check
+        run: |
+          python3 -c "
+          import json, sys
+          from data.synthetic import SyntheticDataLoader
+          from drift.statistical import run_statistical_drift
+          from drift.feature_drift import run_feature_drift
+          from drift.target_drift import run_target_drift
+          import os
+
+          loader = SyntheticDataLoader()
+          X_ref, y_ref = loader.load_reference()
+          X_cur, y_cur = loader.load_current_window()
+
+          stat = run_statistical_drift(X_ref, X_cur, loader.get_feature_names(), loader.get_task_type())
+          feat = run_feature_drift(X_ref, X_cur)
+          tgt = run_target_drift(y_ref, y_cur, loader.get_task_type())
+
+          severity = 0.5 * (stat.n_drifted / stat.n_features) + 0.3 * feat.share_of_drifted_features + 0.2 * (1.0 if tgt.target_drift_detected else 0.0)
+          report = {'overall_severity': severity, 'stat_drifted': stat.n_drifted, 'feat_share': feat.share_of_drifted_features, 'target_drift': tgt.target_drift_detected}
+          print(json.dumps(report, indent=2))
+
+          threshold = float(os.getenv('DRIFT_SEVERITY_THRESHOLD', '0.5'))
+          if severity > threshold:
+              print(f'FAIL: severity {severity:.3f} exceeds threshold {threshold}', file=sys.stderr)
+              sys.exit(1)
+          "
+        env:
+          DRIFT_SEVERITY_THRESHOLD: "0.5"
+
+      - name: Upload drift report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          retention-days: 30
+          path: "*.json"
