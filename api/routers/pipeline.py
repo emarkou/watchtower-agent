@@ -29,7 +29,7 @@ def _now_iso() -> str:
 
 def _run_pipeline(run_id: str, trigger_source: str, dry_run: bool) -> None:
     from api.deps import get_store
-    from data.synthetic import SyntheticDataLoader
+    from data.loader_factory import get_loader
     from drift.statistical import run_statistical_drift
     from drift.feature_drift import run_feature_drift
     from drift.target_drift import run_target_drift
@@ -39,7 +39,7 @@ def _run_pipeline(run_id: str, trigger_source: str, dry_run: bool) -> None:
     store = get_store()
 
     try:
-        loader = SyntheticDataLoader()
+        loader = get_loader()
         X_ref, y_ref = loader.load_reference()
         X_cur, y_cur = loader.load_current_window()
         feature_names = loader.get_feature_names()
