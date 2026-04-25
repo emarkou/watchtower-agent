@@ -2,38 +2,70 @@ from __future__ import annotations
 
 import streamlit as st
 
-st.set_page_config(page_title="Run History", layout="wide")
+st.set_page_config(page_title="Run History", layout="wide", page_icon="📋")
 
 from ui.components.metric_cards import render_kpi_cards
 from ui.data_access import get_all_runs
 
-st.title("Run History")
+st.title("📋 Run History")
 
 runs_df = get_all_runs()
 
 if runs_df.empty:
-    st.info("No runs recorded yet.")
-else:
-    total_runs = len(runs_df)
-    retrain_rate = runs_df["retrain_triggered"].sum() / total_runs if total_runs else 0.0
-    promotion_rate = runs_df["champion_promoted"].sum() / total_runs if total_runs else 0.0
-    last_run = str(runs_df["triggered_at"].iloc[0]) if not runs_df.empty else None
+    st.info("No runs recorded yet. Trigger a pipeline run to get started.")
+    st.stop()
 
-    render_kpi_cards(total_runs, retrain_rate, promotion_rate, last_run)
+# ── KPI row ───────────────────────────────────────────────────────────────────
+total = len(runs_df)
+retrain_rate = float(runs_df["retrain_triggered"].sum() / total) if total else 0.0
+promotion_rate = float(runs_df["champion_promoted"].sum() / total) if total else 0.0
+last_run = str(runs_df["triggered_at"].iloc[0])[:16]
+render_kpi_cards(total, retrain_rate, promotion_rate, last_run)
 
-    st.subheader("All Runs")
-    display_df = runs_df[["triggered_at", "trigger_source", "drift_detected", "retrain_triggered", "champion_promoted", "status"]].copy()
-    display_df = display_df.rename(columns={"triggered_at": "Time", "trigger_source": "Source"})
-    display_df["drift_detected"] = display_df["drift_detected"].apply(lambda v: "✅" if v else "❌")
-    display_df["retrain_triggered"] = display_df["retrain_triggered"].apply(lambda v: "✅" if v else "❌")
-    display_df["champion_promoted"] = display_df["champion_promoted"].apply(lambda v: "✅" if v else "❌")
-    display_df["status"] = display_df["status"].apply(
-        lambda s: "🟢 completed" if s == "completed" else ("🔴 failed" if s == "failed" else "🟡 running")
+st.divider()
+
+# ── Runs table ────────────────────────────────────────────────────────────────
+st.subheader("All Runs")
+
+display = runs_df.copy()
+display["run_id_short"] = display["run_id"].str[:8] + "…"
+display["status_display"] = display["status"].map(
+    {"completed": "🟢 completed", "failed": "🔴 failed", "running": "🟡 running"}
+).fillna(display["status"])
+display["drift_display"]   = display["drift_detected"].apply(lambda v: "✅" if v else "❌")
+display["retrain_display"] = display["retrain_triggered"].apply(lambda v: "✅" if v else "❌")
+display["promoted_display"]= display["champion_promoted"].apply(lambda v: "✅" if v else "❌")
+display["triggered_at_short"] = display["triggered_at"].astype(str).str[:19]
+
+st.dataframe(
+    display[[
+        "run_id_short", "triggered_at_short", "trigger_source",
+        "status_display", "drift_display", "retrain_display", "promoted_display",
+    ]],
+    use_container_width=True,
+    column_config={
+        "run_id_short":       st.column_config.TextColumn("Run ID",       width="small"),
+        "triggered_at_short": st.column_config.TextColumn("Triggered At", width="medium"),
+        "trigger_source":     st.column_config.TextColumn("Source",       width="small"),
+        "status_display":     st.column_config.TextColumn("Status",       width="small"),
+        "drift_display":      st.column_config.TextColumn("Drift",        width="small"),
+        "retrain_display":    st.column_config.TextColumn("Retrain",      width="small"),
+        "promoted_display":   st.column_config.TextColumn("Promoted",     width="small"),
+    },
+    hide_index=True,
+)
+
+# ── Run selector → trace page ─────────────────────────────────────────────────
+st.divider()
+st.subheader("Inspect a Run")
+
+run_options = {
+    f"{r['run_id'][:8]}  ·  {str(r['triggered_at'])[:16]}  ·  {r['status']}": r["run_id"]
+    for r in runs_df.to_dict("records")
+}
+chosen = st.selectbox("Select run to view agent trace:", list(run_options.keys()))
+if chosen:
+    st.session_state.selected_run_id = run_options[chosen]
+    st.markdown(
+        f"Selected `{run_options[chosen]}` — navigate to **🧠 Agent Reasoning Trace** in the sidebar."
     )
-    st.dataframe(display_df, use_container_width=True)
-
-    run_ids = runs_df["run_id"].tolist()
-    selected = st.selectbox("View agent trace for run:", run_ids)
-    if selected:
-        st.session_state.selected_run_id = selected
-        st.success(f"Run `{selected}` selected. Navigate to the Agent Reasoning Trace page to view details.")
